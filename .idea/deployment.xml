@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData" remoteFilesAllowedToDisappearOnAutoupload="false">
+    <serverData>
+      <paths name="hwkang@163.152.183.94:22">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/hwkang/dsba/code/IPL/Incremental_pseudo_labeling_for_Anomaly_Detection" local="$PROJECT_DIR$" web="/" />
+            <mapping local="" />
+          </mappings>
+        </serverdata>
+      </paths>
+    </serverData>
+  </component>
+</project>

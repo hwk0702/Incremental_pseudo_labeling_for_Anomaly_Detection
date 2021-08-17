@@ -1,0 +1,96 @@
+# config.yaml
+
+path: ./
+output_path: ./result
+save_path: ./save
+norm: True
+
+# result email
+senderAddr: hwk0702@gmail.com
+recipientAddr: hwk0702@gmail.com
+password: fjwfqwjalwvnqagf
+
+# Dataset
+dataset:
+  cifa10:
+    path: ./Dataset/c10.pkl
+    num_class: 10
+    labelCol: label
+  cifa100:
+    path: ./Dataset/c100.pkl
+    num_class: 100
+    labelCol: label
+  cardioForAnomalies:
+    path: ./Dataset/cardio.pkl
+    num_class: 2
+    labelCol: cardio
+    label:
+      - 0
+      - 1
+  defaultCreditCard:
+    path: ./Dataset/defaultCredit.pkl
+    num_class: 2
+    labelCol: default payment next month
+    label:
+      - 0
+      - 1
+  DryBean:
+    path: ./Dataset/dryBean.pkl
+    num_class: 2
+    labelCol: Class
+    label:
+      - 0
+      - 1
+  fashion_mnist:
+    path: ./Dataset/fashion_mnist.pkl
+    num_class: 10
+    labelCol: label
+  kddcup99:
+    path: ./Dataset/kddcup99.pkl
+    cat_cols:
+      - protocol_type
+      - service
+      - flag
+    num_class: 23
+    labelCol: label
+
+  kddcup_rev:
+    path: ./Dataset/kddcup_rev.pkl
+    cat_cols:
+      - protocol_type
+      - service
+      - flag
+    num_class: 17
+    labelCol: label
+
+  mnist:
+    path: ./Dataset/mnist.pkl
+    labelCol: label
+    num_class: 10
+
+  aps_failure:
+    path: ./Dataset/aps_failure.pkl
+    labelCol: class
+    num_class: 2
+    label:
+      - neg
+      - pos
+
+# Isolatin Forest
+IF:
+  n_estimators: 300
+  max_samples: 100
+  contamination: 0.5
+  random_state: 72
+
+# 1-SVM
+OCSVM:
+  kernel: rbf
+  gamma: scale
+
+# Auto Encoder
+AutoEncoder:
+
+
+# GAN
+GAN:
