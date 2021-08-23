@@ -16,12 +16,12 @@ class IF(IsolationForest):
 
     def validation(self, x_val):
         # result = self.IF.decision_function(x_val)
-        result = self.IF.score_samples(x_val)
+        result = -self.IF.score_samples(x_val)
         return result
 
     def test(self, x_test):
         # result = self.IF.decision_function(x_test)
-        result = self.IF.score_samples(x_test)
+        result = -self.IF.score_samples(x_test)
         return result
 
     def save(self, filename):

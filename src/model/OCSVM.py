@@ -15,11 +15,11 @@ class OCSVM(OneClassSVM):
         self.OS = self.OS.fit(x_train)
 
     def validation(self, x_val):
-        result = self.OS.decision_function(x_val)
+        result = -self.OS.decision_function(x_val)
         return result
 
     def test(self, x_test):
-        result = self.OS.decision_function(x_test)
+        result = -self.OS.decision_function(x_test)
         return result
 
     def save(self, filename):

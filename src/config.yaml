@@ -16,10 +16,13 @@ dataset:
     path: ./Dataset/c10.pkl
     num_class: 10
     labelCol: label
+    isLabelRatioChg: True
   cifa100:
+    isLabelRatioChg: True    
     path: ./Dataset/c100.pkl
     num_class: 100
     labelCol: label
+    isLabelRatioChg: True
   cardioForAnomalies:
     path: ./Dataset/cardio.pkl
     num_class: 2
@@ -27,6 +30,7 @@ dataset:
     label:
       - 0
       - 1
+    isLabelRatioChg: False
   defaultCreditCard:
     path: ./Dataset/defaultCredit.pkl
     num_class: 2
@@ -34,6 +38,7 @@ dataset:
     label:
       - 0
       - 1
+    isLabelRatioChg: False
   DryBean:
     path: ./Dataset/dryBean.pkl
     num_class: 2
@@ -41,10 +46,12 @@ dataset:
     label:
       - 0
       - 1
+    isLabelRatioChg: False
   fashion_mnist:
     path: ./Dataset/fashion_mnist.pkl
     num_class: 10
     labelCol: label
+    isLabelRatioChg: True
   kddcup99:
     path: ./Dataset/kddcup99.pkl
     cat_cols:
@@ -53,7 +60,7 @@ dataset:
       - flag
     num_class: 23
     labelCol: label
-
+    isLabelRatioChg: False
   kddcup_rev:
     path: ./Dataset/kddcup_rev.pkl
     cat_cols:
@@ -62,12 +69,12 @@ dataset:
       - flag
     num_class: 17
     labelCol: label
-
+    isLabelRatioChg: False
   mnist:
     path: ./Dataset/mnist.pkl
     labelCol: label
     num_class: 10
-
+    isLabelRatioChg: True
   aps_failure:
     path: ./Dataset/aps_failure.pkl
     labelCol: class
@@ -75,6 +82,7 @@ dataset:
     label:
       - neg
       - pos
+    isLabelRatioChg: False
 
 # Isolatin Forest
 IF:

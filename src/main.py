@@ -5,11 +5,14 @@ Incremental_pseudo_labeling_for_Anomaly_Detection
 예시 : python main.py
 """
 
+from pandas.core.reshape.merge import merge
+from numpyencoder import NumpyEncoder
 from config import load_config, str2bool
 from preprocessing import normalize
 from util.check_mail import send_mail
 from util.splitDataset import getDatasets
 from util.plotting import anomaly_dist, AUROC_curve
+
 from util.eval import eval
 from model.IF import IF
 from model.OCSVM import OCSVM
@@ -18,7 +21,7 @@ import pandas as pd
 import numpy as np
 import warnings
 import logging
-import json
+import json 
 import yaml
 import sys
 import os
@@ -27,20 +30,34 @@ from collections import Counter
 warnings.filterwarnings('ignore')
 
 # UNK -> train 추가 방법
-def inc_data(x_train, y_train, x_unk, y_unk, result_unk, method, method_param):
-    x_unk = x_unk[np.argsort(result_unk)]
-    y_unk = y_unk[np.argsort(result_unk)]
+def inc_data(x_train, y_train, x_unk, y_unk, result_unk, method, method_param):    
+
+    reindex = np.argsort(result_unk)        
+    
+    x_unk = x_unk[reindex]
+    y_unk = y_unk[reindex] 
+    logger.info(f'Left unlabeled data : {len(x_unk)}')
 
     if method == 'simple_inc':
         method_param = int(method_param)
-        if method_param > len(x_unk):
-            return x_train, y_train, x_unk, y_unk, False
-        x_unk_add = x_unk[-method_param:]
-        x_unk = x_unk[:-method_param]
+        if method_param >= len(x_unk):
+            return x_train, y_train, x_unk, y_unk, False        
+        #x_unk_add = x_unk[-method_param:]    
+        #x_unk = x_unk[:-method_param]
+        x_unk_add = x_unk[:method_param]    
+        x_unk = x_unk[method_param:]
         x_train = np.concatenate((x_train, x_unk_add), axis=0)
-        y_unk_add = y_unk[-method_param:]
-        y_unk = y_unk[:-method_param]
-        y_train = np.concatenate((y_train, y_unk_add), axis=None)
+        logger.info(f'Next train data : {len(x_train)}')
+        #y_unk_add = y_unk[-method_param:]
+        #y_unk = y_unk[:-method_param]
+        y_unk_add = y_unk[:method_param]
+        y_unk = y_unk[method_param:]
+        y_unk.reset_index(drop=True, inplace=True)
+        y_train = np.concatenate((y_train, y_unk_add), axis = 0)
+        
+        
+        
+        
 
     elif method == 'rate_inc':
         n_add = int(method_param*len(x_unk))
@@ -57,7 +74,8 @@ def inc_data(x_train, y_train, x_unk, y_unk, result_unk, method, method_param):
         # 수정해야
         x_unk = x_unk[np.argsort(result_unk)]
         y_unk = y_unk[np.argsort(result_unk)]
-
+   
+  
 
     return x_train, y_train, x_unk, y_unk, True
 
@@ -107,14 +125,35 @@ def main(args, config):
     if 'cat_cols' in config['dataset'][dataset].keys():
         data = pd.get_dummies(data, columns=config['dataset'][dataset]['cat_cols'])
 
-    # class 선택해서 normal, abnormal Label로 변경
-    ab_label = int(ab_label) if ab_label in list(map(lambda x: str(x), range(10))) else ab_label
-    data[labelCol] = data.apply(lambda x: 1 if x[labelCol] == ab_label else 0, axis=1)
-    X = data[data.columns.difference([labelCol])]
-    y = data[labelCol]
+    #normal Label 이 Majority가 아닌 경우, label 비율 수정
+    isLabelRatioChg = config['dataset'][dataset]['isLabelRatioChg']
+    if (isLabelRatioChg == False):
+        # class 선택해서 normal, abnormal Label로 변경
+        ab_label = int(ab_label) if ab_label in list(map(lambda x: str(x), range(10))) else ab_label
+        data[labelCol] = data.apply(lambda x: 1 if x[labelCol] == ab_label else 0, axis=1)
+        X = data[data.columns.difference([labelCol])]
+        y = data[labelCol]
+    
+    auroc_sum=[]
+    
 
-    for k in range(10):
+    iter_num = 10
+    if (dataset == 'cifa100'):
+        iter_num = 20
+
+
+    for k in range(iter_num):
         # data split
+        if (isLabelRatioChg):
+            #normal Label 이 Major가 아닌 경우, label 비율 수정
+            dataNormal = data[data[labelCol] == k]
+            dataNormal[labelCol] =dataNormal.apply(lambda x:0, axis =1)
+            dataAb = data[data[labelCol] != k].sample(n= round(len(dataNormal)/10), random_state=k )
+            dataAb[labelCol] =dataAb.apply(lambda x:1, axis =1)
+            mergeData = pd.concat([dataNormal, dataAb])
+            X = mergeData[mergeData.columns.difference([labelCol])]
+            y = mergeData[labelCol]
+
         datasets = getDatasets(k, X, y)
         x_train = datasets['x_train']
         y_train = datasets['y_train']
@@ -152,12 +191,16 @@ def main(args, config):
         logger.info(f'\n iter : {k}, data : {dataset}, model : {model_name}, abnormal label : {ab_label}, '
                     f'increment method : {method}, increment parameter : {method_param}')
 
+
+        
+        roc_auc_repeat = []
+
         while repeat:
             num_repeat += 1
             model = globals()[model_name](model_params)
             model.train(x_train)
             model.save(model_save_path+f'{method}_{method_param}_K{k}_{num_repeat}')
-            result_val = -model.validation(x_val)
+            result_val = model.validation(x_val)
 
             fpr, tpr, _ = roc_curve(y_val, result_val)
             roc_auc = auc(fpr, tpr)
@@ -188,22 +231,52 @@ def main(args, config):
             # history.setdefault('anomaly_dist', []).append(ano_dist)
             # history.setdefault('AUROC_curve', []).append(curve)
 
+            
+            roc_auc_repeat.append(test_roc_auc)
+
             # 이거 나중에 제거!!
-            sys.exit()
-            if early_stopping.validate(-roc_auc):
-                break
+            #sys.exit()
+            #break
+            #if early_stopping.validate(-roc_auc):
+            #    break
 
             x_train, y_train, x_unk, y_unk, repeat = inc_data(x_train, y_train,
                                                               x_unk, y_unk,
                                                               result_unk,
-                                                              method, method_param)
+                                                              method, method_param)            
 
         result_path = f'{output_path}/{dataset}/{model_name}/'
         if not os.path.exists(result_path):
             os.makedirs(result_path)
+        
+        #k번째 repeat횟수별 AUROC 저장
+        auroc_sum.append(roc_auc_repeat)
 
         with open(result_path+f'{method}_{method_param}_val_{k}.json', 'w', encoding='utf-8') as f:
-            json.dump(history, f, indent="\t")
+            json.dump(history, f, cls= NumpyEncoder , indent="\t")
+    
+
+    repeat_max = 1
+    result  = dict()
+
+    if type(auroc_sum[0] != int):
+        repeat_max = len(auroc_sum[0])
+    
+    #repeat 횟수별 평균값 계산
+    for r in range(repeat_max):        
+        logger.info(f'repeat : {r} Result Summary')        
+        auroc_sum_repeat=[]
+        for k in range(iter_num):            
+            logger.info(f'Append iteration: {k} Result...')        
+            auroc_sum_repeat.append(auroc_sum[k][r])
+        auroc_mean = np.mean(auroc_sum_repeat)
+        auroc_variance = np.var(auroc_sum_repeat)
+        auroc_std = np.std(auroc_sum_repeat)
+        result.setdefault(str(r)+'_AUROC mean', []).append(auroc_mean)
+        result.setdefault(str(r)+'_AUROC variance', []).append(auroc_variance)
+        result.setdefault(str(r)+'_AUROC std', []).append(auroc_std)
+    with open(result_path+f'{method}_{method_param}_result.json', 'w', encoding='utf-8') as f:
+        json.dump(result, f, cls= NumpyEncoder , indent="\t")
 
     # subject = f'model : {model_name}, Over Sampling : {oversampling}'
     # text = f'model : {model_name}, Over Sampling : {oversampling}, loo : {loo},  n_esimator : {n_estimator}, ' \
