@@ -34,11 +34,12 @@ warnings.filterwarnings('ignore')
 # UNK -> train 추가 방법
 def inc_data(x_train, y_train, x_unk, y_unk, result_unk, method, method_param):    
 
-    reindex = np.argsort(result_unk)        
+    reindex = np.argsort(-result_unk)        
     
     x_unk = x_unk[reindex]
-    y_unk = y_unk[reindex] 
-    logger.info(f'Left unlabeled data : {len(x_unk)}')
+    y_unk = y_unk[reindex]
+    logger.info(f'===========================================================================') 
+    logger.info(f'[Before] Train : {Counter(y_train)}, Unlabeld : {Counter(y_unk)}')    
 
     if method == 'simple_inc':
         method_param = int(method_param)
@@ -48,14 +49,16 @@ def inc_data(x_train, y_train, x_unk, y_unk, result_unk, method, method_param):
         #x_unk = x_unk[:-method_param]
         x_unk_add = x_unk[:method_param]    
         x_unk = x_unk[method_param:]
-        x_train = np.concatenate((x_train, x_unk_add), axis=0)
-        logger.info(f'Next train data : {len(x_train)}')
+        x_train = np.concatenate((x_train, x_unk_add), axis=0)        
         #y_unk_add = y_unk[-method_param:]
         #y_unk = y_unk[:-method_param]
         y_unk_add = y_unk[:method_param]
         y_unk = y_unk[method_param:]
-        y_unk.reset_index(drop=True, inplace=True)
-        y_train = np.concatenate((y_train, y_unk_add), axis = 0)
+        y_unk.reset_index(drop=True, inplace=True)        
+        y_train = np.concatenate((y_train, y_unk_add), axis = 0)        
+        logger.info(f'[After]  Train : {Counter(y_train)}, Unlabeld : {Counter(y_unk)}')
+        logger.info(f'===========================================================================') 
+
 
     elif method == 'rate_inc':
         n_add = int(method_param*len(x_unk))
@@ -125,12 +128,13 @@ def main_iter(k, data, isLabelRatioChg, labelCol, norm,
         ------
         - None
     """
+    
     if (isLabelRatioChg):
         # normal Label 이 Major가 아닌 경우, label 비율 수정
         dataNormal = data[data[labelCol] == k].copy()
-        dataNormal[labelCol] = dataNormal.apply(lambda x: 0, axis=1)
+        dataNormal[labelCol] = dataNormal.apply(lambda x: 1, axis=1)
         dataAb = data[data[labelCol] != k].sample(n=round(len(dataNormal) / 10), random_state=k)
-        dataAb[labelCol] = dataAb.apply(lambda x: 1, axis=1)
+        dataAb[labelCol] = dataAb.apply(lambda x: -1, axis=1)
         Data = pd.concat([dataNormal, dataAb])
         X = Data[Data.columns.difference([labelCol])]
         y = Data[labelCol]
@@ -141,15 +145,16 @@ def main_iter(k, data, isLabelRatioChg, labelCol, norm,
     datasets = getDatasets(k, X, y)
     x_train = datasets['x_train']
     y_train = datasets['y_train']
-    x_train = x_train[y_train == 0]
-    y_train = y_train[y_train == 0]
+    x_train = x_train[y_train == 1]
+    y_train = y_train[y_train == 1]
     x_unk = datasets['x_unk']
     y_unk = datasets['y_unk']
     x_test = datasets['x_test']
     y_test = datasets['y_test']
     x_val = datasets['x_val']
     y_val = datasets['y_val']
-    print(Counter(y_train), Counter(y_val), Counter(y_test))
+
+    
     # normalize
     if norm:
         scaler = normalize(x_train)
@@ -165,7 +170,7 @@ def main_iter(k, data, isLabelRatioChg, labelCol, norm,
     if not os.path.exists(model_save_path + 'img/'):
         os.makedirs(model_save_path + 'img/')
 
-    early_stopping = EarlyStopping(patience=5, verbose=0)
+    early_stopping = EarlyStopping(patience=5, verbose=1)
     repeat = True
     history = dict()
     num_repeat = 0
@@ -173,9 +178,10 @@ def main_iter(k, data, isLabelRatioChg, labelCol, norm,
     # train and test
     logger.info('Training Start!')
     logger.info(f'\n iter : {k}, data : {dataset}, model : {model_name}, abnormal label : {ab_label}, '
-                f'increment method : {method}, increment parameter : {method_param}')
+                f'increment method : {method}, increment parameter : {method_param}')    
 
     while repeat:
+        
         num_repeat += 1
         model = globals()[model_name](model_params)
         model.train(x_train)
@@ -186,7 +192,7 @@ def main_iter(k, data, isLabelRatioChg, labelCol, norm,
         roc_auc = auc(fpr, tpr)
         # roc_auc, tpr, fpr, dd = eval(y_val, result_val)
 
-        logger.info(f'num of repeat : {num_repeat}, AUROC : {roc_auc}')
+        logger.info(f'num of repeat : {num_repeat}, AUROC(val) : {roc_auc}')
 
         result_unk = model.test(x_unk)
 
@@ -198,6 +204,8 @@ def main_iter(k, data, isLabelRatioChg, labelCol, norm,
         result_test = model.validation(x_test)
         test_fpr, test_tpr, _ = roc_curve(y_test, result_test)
         test_roc_auc = auc(test_fpr, test_tpr)
+
+        logger.info(f'num of repeat : {num_repeat}, AUROC(test) : {test_roc_auc}')
 
         curve = AUROC_curve(test_fpr, test_tpr, test_roc_auc)
         curve.savefig(model_save_path + f'img/{method}_{method_param}_K{k}_{num_repeat}_curve_test.png')
@@ -211,8 +219,8 @@ def main_iter(k, data, isLabelRatioChg, labelCol, norm,
         # history.setdefault('anomaly_dist', []).append(ano_dist)
         # history.setdefault('AUROC_curve', []).append(curve)
 
-        if early_stopping.validate(-roc_auc):
-           break
+        #if early_stopping.validate(-roc_auc):
+        #   break
 
         x_train, y_train, x_unk, y_unk, repeat = inc_data(x_train, y_train,
                                                           x_unk, y_unk,
@@ -246,6 +254,7 @@ def main(args, config):
     password = config['password']
 
     # data load
+    print ("dataset loading...  :",dataset)
     data = pd.read_pickle(config['dataset'][dataset]['path'])
     labelCol = config['dataset'][dataset]['labelCol']
 
@@ -257,14 +266,14 @@ def main(args, config):
     if (isLabelRatioChg == False):
         # class 선택해서 normal, abnormal Label로 변경
         ab_label = int(ab_label) if ab_label in list(map(lambda x: str(x), range(10))) else ab_label
-        data[labelCol] = data.apply(lambda x: 1 if x[labelCol] == ab_label else 0, axis=1)
+        data[labelCol] = data.apply(lambda x: -1 if x[labelCol] == ab_label else 1, axis=1)
 
     iter_num = 10
     if (dataset == 'cifa100'):
         iter_num = 20
 
     with Pool(workers or cpu_count()) as pool:
-        pool.imap(
+        pool.imap(            
             func=partial(main_iter,
                          data=data, isLabelRatioChg=isLabelRatioChg, labelCol=labelCol, norm=norm,
                          save_path=save_path, dataset=dataset, model_name=model_name, method=method, ab_label=ab_label,
@@ -276,7 +285,7 @@ def main(args, config):
 
     subject = f'model : {model_name}, Dataset : {dataset}, Inc_method : {method}, method_param : {method_param}'
     text = f'model : {model_name}, Dataset : {dataset}, Inc_method : {method}, method_param : {method_param}'
-    send_mail(senderAddr, recipientAddr, password, subject, text)
+    #send_mail(senderAddr, recipientAddr, password, subject, text)
 
 if __name__ == '__main__':
     # logger 세팅

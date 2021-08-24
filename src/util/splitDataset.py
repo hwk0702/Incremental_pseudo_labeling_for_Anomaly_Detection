@@ -72,22 +72,22 @@ def train_val_test_split2(X, y, test_val_size, unlabelSize, random_seed):
         data.append(data_id)        
         test_val.append(test_val_id)
         
-        data_X = X.iloc[data[0]]
-        data_y = y.iloc[data[0]]
+        data_X = X.iloc[data[0]].copy()
+        data_y = y.iloc[data[0]].copy()
                 
-        test_val_X = X.iloc[test_val[0]]
-        test_val_y = y.iloc[test_val[0]]
+        test_val_X = X.iloc[test_val[0]].copy()
+        test_val_y = y.iloc[test_val[0]].copy()
         
         split2 = StratifiedShuffleSplit(n_splits=1, test_size=0.5, random_state =random_seed)    
         for test_id, val_id in split2.split(test_val_X, test_val_y):
             test.append(test_id)
             val.append(val_id)
             
-            test_X = test_val_X.iloc[test[0]]
-            test_y = test_val_y.iloc[test[0]]
+            test_X = test_val_X.iloc[test[0]].copy()
+            test_y = test_val_y.iloc[test[0]].copy()            
             
-            val_X = test_val_X.iloc[val[0]]
-            val_y = test_val_y.iloc[val[0]]            
+            val_X = test_val_X.iloc[val[0]].copy()
+            val_y = test_val_y.iloc[val[0]].copy()
             
             
         split3 = StratifiedShuffleSplit(n_splits=1, test_size=unlabelSize, random_state=random_seed)        
@@ -96,19 +96,19 @@ def train_val_test_split2(X, y, test_val_size, unlabelSize, random_seed):
             train.append(train_id)
             unlabel.append(unlabel_id)
             
-            train_X = data_X.iloc[train[0]]            
-            train_y = data_y.iloc[train[0]]
-            
-            unlabel_X = data_X.iloc[unlabel[0]]
-            unlabel_y = data_y.iloc[unlabel[0]]
+            train_X = data_X.iloc[train[0]].copy()            
+            train_y = data_y.iloc[train[0]].copy()
+                        
+            unlabel_X = data_X.iloc[unlabel[0]].copy()
+            unlabel_y = data_y.iloc[unlabel[0]].copy()            
         
         return  train_X, train_y, unlabel_X, unlabel_y, val_X, val_y, test_X, test_y
 
 def getTestValIndex(y, random_seed):
     # Anomal label
-    anomalLabel = 1
+    anomalLabel = -1
 
-    isAnomal = y == anomalLabel
+    isAnomal = y == anomalLabel    
     isNormal = y != anomalLabel
 
     anomal = y[isAnomal].index.tolist()
@@ -124,7 +124,7 @@ def getDatasets(k, X, y):
         assert (k < 20), f"k must be 0~19"
     except AssertionError as e:
         raise
-    data = train_val_test_split2(X, y, test_val_size=0.3,  unlabelSize=0.5, random_seed=k+72)
+    data = train_val_test_split2(X, y, test_val_size=0.3,  unlabelSize=0.9, random_seed=k+72)
 
     trainX = data[0].reset_index(drop=True)
     trainy = data[1].reset_index(drop=True)
