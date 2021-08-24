@@ -103,10 +103,23 @@ def main_iter(k, data, isLabelRatioChg, labelCol, norm,
               save_path, dataset, model_name, method, ab_label,
               method_param, output_path, model_params):
     """
+        main iteration
 
         Arguments
         ---------
-
+        - k               : iteration number,
+        - data            : data,
+        - isLabelRatioChg : ,
+        - labelCol        : ,
+        - norm            : ,
+        - save_path       : ,
+        - dataset         : ,
+        - model_name      : ,
+        - method          : ,
+        - ab_label        : ,
+        - method_param    : ,
+        - output_path     : ,
+        - model_params    : ,
 
         Return
         ------
