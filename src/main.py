@@ -26,6 +26,8 @@ import yaml
 import sys
 import os
 from collections import Counter
+from multiprocessing import Pool, cpu_count
+from functools import partial
 
 warnings.filterwarnings('ignore')
 
@@ -54,10 +56,6 @@ def inc_data(x_train, y_train, x_unk, y_unk, result_unk, method, method_param):
         y_unk = y_unk[method_param:]
         y_unk.reset_index(drop=True, inplace=True)
         y_train = np.concatenate((y_train, y_unk_add), axis = 0)
-        
-        
-        
-        
 
     elif method == 'rate_inc':
         n_add = int(method_param*len(x_unk))
@@ -101,6 +99,125 @@ class EarlyStopping():
         return False
 
 
+def main_iter(k, data, isLabelRatioChg, labelCol, norm,
+              save_path, dataset, model_name, method, ab_label,
+              method_param, output_path, model_params):
+    """
+        Determine affine transformations T between two images
+
+        Arguments
+        ---------
+        - matching_points : corresponding feature points between two images,
+        - iteration       : ransac iteration,
+        - threshold       : threshold for refine matches,
+        - rule            : Whether to use homography supplementary rules
+
+        Return
+        ------
+        - None
+    """
+    if (isLabelRatioChg):
+        # normal Label 이 Major가 아닌 경우, label 비율 수정
+        dataNormal = data[data[labelCol] == k].copy()
+        dataNormal[labelCol] = dataNormal.apply(lambda x: 0, axis=1)
+        dataAb = data[data[labelCol] != k].sample(n=round(len(dataNormal) / 10), random_state=k)
+        dataAb[labelCol] = dataAb.apply(lambda x: 1, axis=1)
+        Data = pd.concat([dataNormal, dataAb])
+        X = Data[Data.columns.difference([labelCol])]
+        y = Data[labelCol]
+    else:
+        X = data[data.columns.difference([labelCol])]
+        y = data[labelCol]
+
+    datasets = getDatasets(k, X, y)
+    x_train = datasets['x_train']
+    y_train = datasets['y_train']
+    x_train = x_train[y_train == 0]
+    y_train = y_train[y_train == 0]
+    x_unk = datasets['x_unk']
+    y_unk = datasets['y_unk']
+    x_test = datasets['x_test']
+    y_test = datasets['y_test']
+    x_val = datasets['x_val']
+    y_val = datasets['y_val']
+    print(Counter(y_train), Counter(y_val), Counter(y_test))
+    # normalize
+    if norm:
+        scaler = normalize(x_train)
+        x_train = scaler.transform(x_train)
+        x_unk = scaler.transform(x_unk)
+        x_test = scaler.transform(x_test)
+        x_val = scaler.transform(x_val)
+
+    model_save_path = f'{save_path}/{dataset}/{model_name}/{method}/'
+    if not os.path.exists(model_save_path):
+        os.makedirs(model_save_path)
+
+    if not os.path.exists(model_save_path + 'img/'):
+        os.makedirs(model_save_path + 'img/')
+
+    early_stopping = EarlyStopping(patience=5, verbose=0)
+    repeat = True
+    history = dict()
+    num_repeat = 0
+
+    # train and test
+    logger.info('Training Start!')
+    logger.info(f'\n iter : {k}, data : {dataset}, model : {model_name}, abnormal label : {ab_label}, '
+                f'increment method : {method}, increment parameter : {method_param}')
+
+    while repeat:
+        num_repeat += 1
+        model = globals()[model_name](model_params)
+        model.train(x_train)
+        model.save(model_save_path + f'{method}_{method_param}_K{k}_{num_repeat}')
+        result_val = model.validation(x_val)
+
+        fpr, tpr, _ = roc_curve(y_val, result_val)
+        roc_auc = auc(fpr, tpr)
+        # roc_auc, tpr, fpr, dd = eval(y_val, result_val)
+
+        logger.info(f'num of repeat : {num_repeat}, AUROC : {roc_auc}')
+
+        result_unk = model.test(x_unk)
+
+        ano_dist = anomaly_dist(result_val, result_unk)
+        curve = AUROC_curve(fpr, tpr, roc_auc)
+        ano_dist.savefig(model_save_path + f'img/{method}_{method_param}_K{k}_{num_repeat}_ano.png')
+        curve.savefig(model_save_path + f'img/{method}_{method_param}_K{k}_{num_repeat}_curve.png')
+
+        result_test = model.validation(x_test)
+        test_fpr, test_tpr, _ = roc_curve(y_test, result_test)
+        test_roc_auc = auc(test_fpr, test_tpr)
+
+        curve = AUROC_curve(test_fpr, test_tpr, test_roc_auc)
+        curve.savefig(model_save_path + f'img/{method}_{method_param}_K{k}_{num_repeat}_curve_test.png')
+
+        history.setdefault('val_roc_auc', []).append(roc_auc)
+        history.setdefault('val_fpr', []).append(fpr)
+        history.setdefault('val_tpr', []).append(tpr)
+        history.setdefault('test_roc_auc', []).append(test_roc_auc)
+        history.setdefault('test_fpr', []).append(test_fpr)
+        history.setdefault('test_tpr', []).append(test_tpr)
+        # history.setdefault('anomaly_dist', []).append(ano_dist)
+        # history.setdefault('AUROC_curve', []).append(curve)
+
+        if early_stopping.validate(-roc_auc):
+           break
+
+        x_train, y_train, x_unk, y_unk, repeat = inc_data(x_train, y_train,
+                                                          x_unk, y_unk,
+                                                          result_unk,
+                                                          method, method_param)
+
+    result_path = f'{output_path}/{dataset}/{model_name}/'
+    if not os.path.exists(result_path):
+        os.makedirs(result_path)
+
+    with open(result_path + f'{method}_{method_param}_val_{k}.json', 'w', encoding='utf-8') as f:
+        json.dump(history, f, cls=NumpyEncoder, indent="\t")
+
+
 def main(args, config):
     # arg parser
     model_name = args['model']
@@ -111,6 +228,7 @@ def main(args, config):
 
     # yaml parser
     norm = config['norm']
+    workers = config['workers']
     model_params = config[model_name]
     output_path = config['output_path']
     save_path = config['save_path']
@@ -131,158 +249,25 @@ def main(args, config):
         # class 선택해서 normal, abnormal Label로 변경
         ab_label = int(ab_label) if ab_label in list(map(lambda x: str(x), range(10))) else ab_label
         data[labelCol] = data.apply(lambda x: 1 if x[labelCol] == ab_label else 0, axis=1)
-        X = data[data.columns.difference([labelCol])]
-        y = data[labelCol]
-    
-    auroc_sum=[]
-    
 
     iter_num = 10
     if (dataset == 'cifa100'):
         iter_num = 20
 
+    with Pool(workers or cpu_count()) as pool:
+        pool.imap(
+            func=partial(main_iter,
+                         data=data, isLabelRatioChg=isLabelRatioChg, labelCol=labelCol, norm=norm,
+                         save_path=save_path, dataset=dataset, model_name=model_name, method=method, ab_label=ab_label,
+                         method_param=method_param, output_path=output_path, model_params=model_params),
+            iterable=range(iter_num)
+        )
+        pool.close()
+        pool.join()
 
-    for k in range(iter_num):
-        # data split
-        if (isLabelRatioChg):
-            #normal Label 이 Major가 아닌 경우, label 비율 수정
-            dataNormal = data[data[labelCol] == k]
-            dataNormal[labelCol] =dataNormal.apply(lambda x:0, axis =1)
-            dataAb = data[data[labelCol] != k].sample(n= round(len(dataNormal)/10), random_state=k )
-            dataAb[labelCol] =dataAb.apply(lambda x:1, axis =1)
-            mergeData = pd.concat([dataNormal, dataAb])
-            X = mergeData[mergeData.columns.difference([labelCol])]
-            y = mergeData[labelCol]
-
-        datasets = getDatasets(k, X, y)
-        x_train = datasets['x_train']
-        y_train = datasets['y_train']
-        x_train = x_train[y_train==0]
-        y_train = y_train[y_train==0]
-        x_unk = datasets['x_unk']
-        y_unk = datasets['y_unk']
-        x_test = datasets['x_test']
-        y_test = datasets['y_test']
-        x_val = datasets['x_val']
-        y_val = datasets['y_val']
-        print(Counter(y_train), Counter(y_val), Counter(y_test))
-        # normalize
-        if norm:
-            scaler = normalize(x_train)
-            x_train = scaler.transform(x_train)
-            x_unk = scaler.transform(x_unk)
-            x_test = scaler.transform(x_test)
-            x_val = scaler.transform(x_val)
-
-        model_save_path = f'{save_path}/{dataset}/{model_name}/{method}/'
-        if not os.path.exists(model_save_path):
-            os.makedirs(model_save_path)
-
-        if not os.path.exists(model_save_path+'img/'):
-            os.makedirs(model_save_path+'img/')
-
-        early_stopping = EarlyStopping(patience=5, verbose=0)
-        repeat = True
-        history = dict()
-        num_repeat = 0
-
-        # train and test
-        logger.info('Training Start!')
-        logger.info(f'\n iter : {k}, data : {dataset}, model : {model_name}, abnormal label : {ab_label}, '
-                    f'increment method : {method}, increment parameter : {method_param}')
-
-
-        
-        roc_auc_repeat = []
-
-        while repeat:
-            num_repeat += 1
-            model = globals()[model_name](model_params)
-            model.train(x_train)
-            model.save(model_save_path+f'{method}_{method_param}_K{k}_{num_repeat}')
-            result_val = model.validation(x_val)
-
-            fpr, tpr, _ = roc_curve(y_val, result_val)
-            roc_auc = auc(fpr, tpr)
-            # roc_auc, tpr, fpr, dd = eval(y_val, result_val)
-
-            logger.info(f'num of repeat : {num_repeat}, AUROC : {roc_auc}')
-
-            result_unk = model.test(x_unk)
-
-            ano_dist = anomaly_dist(result_val, result_unk)
-            curve = AUROC_curve(fpr, tpr, roc_auc)
-            ano_dist.savefig(model_save_path+f'img/{method}_{method_param}_K{k}_{num_repeat}_ano.png')
-            curve.savefig(model_save_path+f'img/{method}_{method_param}_K{k}_{num_repeat}_curve.png')
-
-            result_test = model.validation(x_test)
-            test_fpr, test_tpr, _ = roc_curve(y_test, result_test)
-            test_roc_auc = auc(test_fpr, test_tpr)
-
-            curve = AUROC_curve(test_fpr, test_tpr, test_roc_auc)
-            curve.savefig(model_save_path + f'img/{method}_{method_param}_K{k}_{num_repeat}_curve_test.png')
-
-            history.setdefault('val_roc_auc', []).append(roc_auc)
-            history.setdefault('val_fpr', []).append(fpr)
-            history.setdefault('val_tpr', []).append(tpr)
-            history.setdefault('test_roc_auc', []).append(test_roc_auc)
-            history.setdefault('test_fpr', []).append(test_fpr)
-            history.setdefault('test_tpr', []).append(test_tpr)
-            # history.setdefault('anomaly_dist', []).append(ano_dist)
-            # history.setdefault('AUROC_curve', []).append(curve)
-
-            
-            roc_auc_repeat.append(test_roc_auc)
-
-            # 이거 나중에 제거!!
-            #sys.exit()
-            #break
-            #if early_stopping.validate(-roc_auc):
-            #    break
-
-            x_train, y_train, x_unk, y_unk, repeat = inc_data(x_train, y_train,
-                                                              x_unk, y_unk,
-                                                              result_unk,
-                                                              method, method_param)            
-
-        result_path = f'{output_path}/{dataset}/{model_name}/'
-        if not os.path.exists(result_path):
-            os.makedirs(result_path)
-        
-        #k번째 repeat횟수별 AUROC 저장
-        auroc_sum.append(roc_auc_repeat)
-
-        with open(result_path+f'{method}_{method_param}_val_{k}.json', 'w', encoding='utf-8') as f:
-            json.dump(history, f, cls= NumpyEncoder , indent="\t")
-    
-
-    repeat_max = 1
-    result  = dict()
-
-    if type(auroc_sum[0] != int):
-        repeat_max = len(auroc_sum[0])
-    
-    #repeat 횟수별 평균값 계산
-    for r in range(repeat_max):        
-        logger.info(f'repeat : {r} Result Summary')        
-        auroc_sum_repeat=[]
-        for k in range(iter_num):            
-            logger.info(f'Append iteration: {k} Result...')        
-            auroc_sum_repeat.append(auroc_sum[k][r])
-        auroc_mean = np.mean(auroc_sum_repeat)
-        auroc_variance = np.var(auroc_sum_repeat)
-        auroc_std = np.std(auroc_sum_repeat)
-        result.setdefault(str(r)+'_AUROC mean', []).append(auroc_mean)
-        result.setdefault(str(r)+'_AUROC variance', []).append(auroc_variance)
-        result.setdefault(str(r)+'_AUROC std', []).append(auroc_std)
-    with open(result_path+f'{method}_{method_param}_result.json', 'w', encoding='utf-8') as f:
-        json.dump(result, f, cls= NumpyEncoder , indent="\t")
-
-    # subject = f'model : {model_name}, Over Sampling : {oversampling}'
-    # text = f'model : {model_name}, Over Sampling : {oversampling}, loo : {loo},  n_esimator : {n_estimator}, ' \
-    #        f'stat : {stat}, stand : {stand}, batch_size : {batch_size}, Type of loss : {lossType}\n ' \
-    #        f'Acc : {accuracy_score(Y_test, Y_pred)}, F1 Score : {f1_score(Y_test, Y_pred)}'
-    # send_mail(senderAddr, recipientAddr, password, subject, text)
+    subject = f'model : {model_name}, Dataset : {dataset}, Inc_method : {method}, method_param : {method_param}'
+    text = f'model : {model_name}, Dataset : {dataset}, Inc_method : {method}, method_param : {method_param}'
+    send_mail(senderAddr, recipientAddr, password, subject, text)
 
 if __name__ == '__main__':
     # logger 세팅

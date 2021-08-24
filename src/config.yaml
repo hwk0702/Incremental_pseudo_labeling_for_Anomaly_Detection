@@ -4,6 +4,7 @@ path: ./
 output_path: ./result
 save_path: ./save
 norm: True
+workers: 5
 
 # result email
 senderAddr: hwk0702@gmail.com
@@ -18,7 +19,6 @@ dataset:
     labelCol: label
     isLabelRatioChg: True
   cifa100:
-    isLabelRatioChg: True    
     path: ./Dataset/c100.pkl
     num_class: 100
     labelCol: label
