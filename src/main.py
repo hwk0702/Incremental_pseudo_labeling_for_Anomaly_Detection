@@ -103,14 +103,10 @@ def main_iter(k, data, isLabelRatioChg, labelCol, norm,
               save_path, dataset, model_name, method, ab_label,
               method_param, output_path, model_params):
     """
-        Determine affine transformations T between two images
 
         Arguments
         ---------
-        - matching_points : corresponding feature points between two images,
-        - iteration       : ransac iteration,
-        - threshold       : threshold for refine matches,
-        - rule            : Whether to use homography supplementary rules
+
 
         Return
         ------
