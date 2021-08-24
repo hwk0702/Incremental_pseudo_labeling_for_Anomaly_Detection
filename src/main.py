@@ -190,7 +190,7 @@ def main_iter(k, data, isLabelRatioChg, labelCol, norm,
 
         result_unk = model.test(x_unk)
 
-        ano_dist = anomaly_dist(result_val, result_unk)
+        ano_dist = anomaly_dist(result_val, y_val, result_unk)
         curve = AUROC_curve(fpr, tpr, roc_auc)
         ano_dist.savefig(model_save_path + f'img/{method}_{method_param}_K{k}_{num_repeat}_ano.png')
         curve.savefig(model_save_path + f'img/{method}_{method_param}_K{k}_{num_repeat}_curve.png')

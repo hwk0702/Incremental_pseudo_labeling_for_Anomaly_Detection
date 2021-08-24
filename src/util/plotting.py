@@ -1,13 +1,13 @@
 from matplotlib import pyplot as plt
 import seaborn as sns
 
-def anomaly_dist(result_y, result_unk):
+def anomaly_dist(result_y, y_val, result_unk):
     fig = plt.figure()
-    sns.distplot(-result_y[result_y == 0], color='green', bins=[-0.15, -0.1, -0.05, 0, 0.05, 0.1, 0.15, 0.2],
+    sns.distplot(result_y[y_val == 0], color='green',
                  label="normal")
-    sns.distplot(-result_y[result_y == 1], color='red', bins=[-0.15, -0.1, -0.05, 0, 0.05, 0.1, 0.15, 0.2],
+    sns.distplot(result_y[y_val == 1], color='red',
                  label="abnoraml")
-    sns.distplot(-result_unk, color='black', bins=[-0.15, -0.1, -0.05, 0, 0.05, 0.1, 0.15, 0.2], label="unknown")
+    sns.distplot(result_unk, color='black', label="unknown")
     plt.legend()
     plt.xlabel("anomaly Score")
     plt.ylabel("Conunt")
