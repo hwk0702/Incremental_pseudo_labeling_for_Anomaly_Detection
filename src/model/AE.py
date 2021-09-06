@@ -105,7 +105,7 @@ class AutoEncoder():
 
     def train(self, trainloader, validloader):
 
-        summary(self.AE, next(iter(trainloader))[0].shape)
+        # summary(self.AE, next(iter(trainloader))[0].shape)
         if self.use_early_stopping == True:
             early_stopping = EarlyStopping(patience=10, verbose=1)
 
@@ -136,7 +136,7 @@ class AutoEncoder():
             if self.use_early_stopping == True:
                 if early_stopping.validate(val_loss):
                     break
-
+        sys.stdout.write('\n')
         self.AE.load_state_dict(self.best["state"])
 
     def _train(self, train_data, use_fp16=True, max_norm=None):

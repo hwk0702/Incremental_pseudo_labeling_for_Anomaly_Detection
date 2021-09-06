@@ -1,11 +1,18 @@
 from matplotlib import pyplot as plt
 import seaborn as sns
+from sklearn.preprocessing import MinMaxScaler
 
 def anomaly_dist(result_y, y_val, result_unk):
+    # scaler = MinMaxScaler()
+    # scaler.fit(result_y.reshape(-1, 1))
+    #
+    # result_y = scaler.transform(result_y.reshape(-1, 1))
+    # result_unk = scaler.transform(result_unk.reshape(-1, 1))
+
     fig = plt.figure()
-    sns.distplot(result_y[y_val == 0], color='green',
+    sns.distplot(-result_y[y_val == 1], color='green',
                  label="normal")
-    sns.distplot(result_y[y_val == 1], color='red',
+    sns.distplot(-result_y[y_val == -1], color='red',
                  label="abnoraml")
     sns.distplot(result_unk, color='black', label="unknown")
     plt.legend()
