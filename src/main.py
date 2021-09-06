@@ -42,7 +42,6 @@ def main_iter(k, data, isLabelRatioChg, labelCol, norm,
               method_param, output_path, model_params, input_type, image_shape=None):
     """
         main iteration
-
         Arguments
         ---------
         - k               : iteration number,
@@ -58,7 +57,6 @@ def main_iter(k, data, isLabelRatioChg, labelCol, norm,
         - method_param    : ,
         - output_path     : ,
         - model_params    : ,
-
         Return
         ------
         - None
@@ -290,5 +288,3 @@ if __name__ == '__main__':
     except Exception as e:
         logger.error(e)
         logger.exception("error")
-
-
