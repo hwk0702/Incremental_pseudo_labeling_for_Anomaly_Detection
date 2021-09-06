@@ -105,7 +105,7 @@ class AutoEncoder():
 
     def train(self, trainloader, validloader):
 
-        summary(self.AE, next(iter(trainloader))[0].shape)
+        # summary(self.AE, next(iter(trainloader))[0].shape)
         if self.use_early_stopping == True:
             early_stopping = EarlyStopping(patience=10, verbose=1)
 
