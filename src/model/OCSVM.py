@@ -4,12 +4,13 @@ import joblib
 
 class OCSVM(OneClassSVM):
 
-    def __init__(self, model_params):
-        self.model_params = model_params
-        self.OS = OneClassSVM(**self.model_params)
+    def __init__(self, kernel, gamma):
+        self.kernel = kernel
+        self.gamma = gamma
+        self.OS = OneClassSVM(kernel=self.kernel, gamma=self.gamma)
 
     def model_reset(self):
-        self.OS = OneClassSVM(**self.model_params)
+        self.OS = OneClassSVM(kernel=self.kernel, gamma=self.gamma)
 
     def train(self, x_train):
         self.OS = self.OS.fit(x_train)
