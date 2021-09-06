@@ -119,9 +119,15 @@ class AutoEncoder():
             self.history.setdefault('loss', []).append(epoch_loss)
             self.history.setdefault('val_loss', []).append(val_loss)
 
-            print(f"[Train] Epoch : {epoch:^3}" \
-                  f"  Train Loss: {epoch_loss:.4}" \
-                  f"  Validation Loss: {val_loss:.4}")
+            sys.stdout.write(
+                "\r" + f"[Train] Epoch : {epoch:^3}"\
+                f"  Train Loss: {epoch_loss:.4}"\
+                f"  Validation Loss: {val_loss:.4}"\
+                            )
+
+            # print(f"[Train] Epoch : {epoch:^3}" \
+            #       f"  Train Loss: {epoch_loss:.4}" \
+            #       f"  Validation Loss: {val_loss:.4}")
             if epoch_loss < self.best["loss"]:
                 self.best["state"] = self.AE.state_dict()
                 self.best["loss"] = epoch_loss
