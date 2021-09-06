@@ -74,10 +74,20 @@ def inc_data(x_train, y_train, x_unk, y_unk, result_unk, method, method_param):
     elif method == 'threshold':
         # 수정해야
         x_unk = x_unk[np.argsort(result_unk)]
-        y_unk = y_unk[np.argsort(result_unk)]
-   
-  
+        y_unk = y_unk[np.argsort(result_unk)]  
 
+    
+    train_idx = np.arange(x_train.shape[0])
+    unk_idx = np.arange(x_unk.shape[0])
+    np.random.shuffle(train_idx)
+    np.random.shuffle(unk_idx)
+
+    x_train = x_train[train_idx]
+    y_train = y_train[train_idx]
+    x_unk = x_unk[unk_idx]
+    y_unk = y_unk[unk_idx]
+    y_unk.reset_index(drop=True, inplace=True)
+    
     return x_train, y_train, x_unk, y_unk, True
 
 
@@ -179,10 +189,18 @@ def main_iter(k, data, isLabelRatioChg, labelCol, norm,
     logger.info('Training Start!')
     logger.info(f'\n iter : {k}, data : {dataset}, model : {model_name}, abnormal label : {ab_label}, '
                 f'increment method : {method}, increment parameter : {method_param}')    
-
+    
+    # model_params 초기화
+    model_params = config[model_name]
     while repeat:
         
         num_repeat += 1
+
+        ##Isolation 동일한 sample 추출 방지 test
+        if(model_name == 'IF'):
+            model_params['random_state'] = model_params['random_state'] + num_repeat            
+            model = globals()[model_name](model_params)
+        
         model = globals()[model_name](model_params)
         model.train(x_train)
         model.save(model_save_path + f'{method}_{method_param}_K{k}_{num_repeat}')
