@@ -18,11 +18,19 @@ dataset:
     num_class: 10
     labelCol: label
     isLabelRatioChg: True
+    image_shape:
+      - 3
+      - 32
+      - 32
   cifa100:
     path: ./Dataset/c100.pkl
     num_class: 100
     labelCol: label
     isLabelRatioChg: True
+    image_shape:
+      - 3
+      - 32
+      - 32
   cardioForAnomalies:
     path: ./Dataset/cardio.pkl
     num_class: 2
@@ -52,6 +60,10 @@ dataset:
     num_class: 10
     labelCol: label
     isLabelRatioChg: True
+    image_shape:
+      - 1
+      - 28
+      - 28
   kddcup99:
     path: ./Dataset/kddcup99.pkl
     cat_cols:
@@ -75,6 +87,10 @@ dataset:
     labelCol: label
     num_class: 10
     isLabelRatioChg: True
+    image_shape:
+      - 1
+      - 28
+      - 28
   aps_failure:
     path: ./Dataset/aps_failure.pkl
     labelCol: class

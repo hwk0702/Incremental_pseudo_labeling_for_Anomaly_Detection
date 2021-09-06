@@ -2,3 +2,4 @@ pyyaml
 scikit-learn
 seaborn
 torchinfo
+einops

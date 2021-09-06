@@ -19,6 +19,7 @@ def load_config():
     ap.add_argument("-L", "--ablabel", type=str, required=True, help="Abnormal label")
     ap.add_argument("-I", "--increment_method", type=str, required=True, help="increment-method")
     ap.add_argument("-P", "--increment_param", type=float, required=True, help="increment-parameter")
+    ap.add_argument("-T", "--input_type", type=str, default='vector', help="input_type(vector, image)")
 
     args = vars(ap.parse_args())
 

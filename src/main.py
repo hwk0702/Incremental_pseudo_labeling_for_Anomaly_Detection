@@ -22,6 +22,7 @@ from sklearn.metrics import roc_curve, auc, confusion_matrix
 import pandas as pd
 import numpy as np
 from torch.utils.data import DataLoader
+from einops import rearrange, repeat
 import warnings
 import logging
 import json 
@@ -38,7 +39,7 @@ warnings.filterwarnings('ignore')
 
 def main_iter(k, data, isLabelRatioChg, labelCol, norm,
               save_path, dataset, model_name, method, ab_label,
-              method_param, output_path, model_params):
+              method_param, output_path, model_params, input_type, image_shape=None):
     """
         main iteration
 
@@ -90,12 +91,19 @@ def main_iter(k, data, isLabelRatioChg, labelCol, norm,
 
     
     # normalize
-    if norm:
+    if norm and input_type=='vector':
         scaler = normalize(x_train)
         x_train = scaler.transform(x_train)
         x_unk = scaler.transform(x_unk)
         x_test = scaler.transform(x_test)
         x_val = scaler.transform(x_val)
+
+    if input_type=='image':
+        x_train = rearrange(x_train, 'b (c h h) -> b c h h', c=image_shape[0])
+        x_unk = rearrange(x_unk, 'b (c h h) -> b c h h', c=image_shape[0])
+        x_test = rearrange(x_test, 'b (c h h) -> b c h h', c=image_shape[0])
+        x_val = rearrange(x_val, 'b (c h h) -> b c h h', c=image_shape[0])
+
 
     model_save_path = f'{save_path}/{dataset}/{model_name}/{method}/'
     if not os.path.exists(model_save_path):
@@ -196,6 +204,7 @@ def main(args, config):
     ab_label = args['ablabel']
     method = args['increment_method']
     method_param = args['increment_param']
+    input_type = args['input_type']
 
     # yaml parser
     norm = config['norm']
@@ -226,6 +235,11 @@ def main(args, config):
     if (dataset == 'cifa100'):
         iter_num = 20
 
+    if input_type == 'image':
+        image_shape = config['dataset'][dataset]['image_shape']
+    else:
+        image_shape = None
+
 
     if model_name in ['IF', 'OCSVM']:
         with Pool(workers or cpu_count()) as pool:
@@ -233,7 +247,8 @@ def main(args, config):
                 func=partial(main_iter,
                              data=data, isLabelRatioChg=isLabelRatioChg, labelCol=labelCol, norm=norm,
                              save_path=save_path, dataset=dataset, model_name=model_name, method=method, ab_label=ab_label,
-                             method_param=method_param, output_path=output_path, model_params=model_params),
+                             method_param=method_param, output_path=output_path, model_params=model_params,
+                             input_type=input_type, image_shape=image_shape),
                 iterable=range(iter_num)
             )
             pool.close()
@@ -243,7 +258,8 @@ def main(args, config):
             main_iter(k,
                       data=data, isLabelRatioChg=isLabelRatioChg, labelCol=labelCol, norm=norm,
                       save_path=save_path, dataset=dataset, model_name=model_name, method=method, ab_label=ab_label,
-                      method_param=method_param, output_path=output_path, model_params=model_params
+                      method_param=method_param, output_path=output_path, model_params=model_params,
+                      input_type=input_type, image_shape=image_shape
                       )
 
     subject = f'model : {model_name}, Dataset : {dataset}, Inc_method : {method}, method_param : {method_param}'

@@ -93,7 +93,7 @@ class AutoEncoder():
 
         #         self.encoder = CNN(units) if input_type=='img' else MLP(units, dropout, output_activation=None)
         #         self.decoder = CNN(units) if input_type=='img' else MLP(list(reversed(units))[1:], dropout)
-        self.AE = ConvAutoEncoder() if input_type == 'img' else MLP(units, dropout)
+        self.AE = ConvAutoEncoder() if input_type == 'image' else MLP(units, dropout)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.AE = self.AE.to(self.device)
         self.epochs = epochs

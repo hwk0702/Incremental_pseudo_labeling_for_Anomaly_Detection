@@ -43,7 +43,7 @@
 #python main.py -M OCSVM -D aps_failure -L pos -I simple_inc -P 1000
 
 ## AE
-python main.py -M AutoEncoder -D mnist -L 9 -I simple_inc -P 50
+python main.py -M AutoEncoder -D mnist -L 9 -I simple_inc -P 50 -T image
 #
 #python main.py -M AutoEncoder -D aps_failure -L pos -I simple_inc -P 500
 #
