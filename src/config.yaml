@@ -4,7 +4,7 @@ path: ./
 output_path: ./result
 save_path: ./save
 norm: True
-workers: 5
+workers: 1
 
 # result email
 senderAddr: hwk0702@gmail.com
@@ -98,7 +98,15 @@ OCSVM:
 
 # Auto Encoder
 AutoEncoder:
-
+  units:
+    - 256
+    - 64
+    - 256
+  dropout: 0.05
+  lr: 0.0001
+  epochs: 100
+  device: cuda
+  use_early_stopping: True
 
 # GAN
 GAN:

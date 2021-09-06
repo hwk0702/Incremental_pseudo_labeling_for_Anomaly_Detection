@@ -4,7 +4,9 @@ from sklearn.metrics import roc_curve
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import StratifiedShuffleSplit
-
+from torch.utils.data import  Dataset, DataLoader
+import torch
+import numpy as np
 
 def train_val_test_split(X, y, splitCount, unlabelSize, test_val_size, random_seed):
     split = StratifiedShuffleSplit(n_splits=1, test_size=unlabelSize, random_state=random_seed)
@@ -145,6 +147,17 @@ def getDatasets(k, X, y):
             'x_unk': unkX, 'y_unk': unky,
             'x_test': testX, 'y_test': testy,
             'x_val': valX, 'y_val': valy}
+
+class CustomDataset(Dataset):
+    def __init__(self, x, y):
+        self.x = torch.FloatTensor(x)
+        self.y = torch.tensor(np.array(y))
+
+    def __len__(self):
+        return len(self.y)
+
+    def __getitem__(self, index):
+        return self.x[index], self.y[index]
 
 if __name__ == '__main__':
     pass

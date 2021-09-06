@@ -3,7 +3,8 @@ import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 import copy
 import sys
-
+from torch.utils.data import  Dataset, DataLoader
+import torch
 
 def group_by(data: pd.DataFrame, keys):
     """
@@ -55,33 +56,33 @@ class normalize:
 #     return norm
 
 
-def re_labeling(group_dataset, var, length, stand, flatten=False, stat=False):
-    """
-    relabeling
-
-    Arguments
-    ---------
-    data: dataframe
-    var: Required variable
-    length: Minimum length to be cut
-    stand: Number of particles to label(1 or 5)
-    stat: Whether to calculate the statistics or not
-
-    """
-    assert stand in [1, 5]
-    x = copy.copy(group_dataset[var].iloc[:length])
-    y = group_dataset['id'].iloc[:length][0]
-    y = np.array(y, dtype=np.int)
-    y[y < stand] = 0
-    y[y >= stand] = 1
-    if stat:
-        x = copy.copy(group_dataset[var[:-4]].iloc[:length])
-        x = x.describe().loc[['mean', 'std', 'min', 'max']]
-        x = x.append(x.median().rename('median'))
-    if flatten:
-        x = np.transpose(np.array(x)).flatten()
-    x = np.array(x, dtype=np.float64)
-    return x, y
+# def re_labeling(group_dataset, var, length, stand, flatten=False, stat=False):
+#     """
+#     relabeling
+#
+#     Arguments
+#     ---------
+#     data: dataframe
+#     var: Required variable
+#     length: Minimum length to be cut
+#     stand: Number of particles to label(1 or 5)
+#     stat: Whether to calculate the statistics or not
+#
+#     """
+#     assert stand in [1, 5]
+#     x = copy.copy(group_dataset[var].iloc[:length])
+#     y = group_dataset['id'].iloc[:length][0]
+#     y = np.array(y, dtype=np.int)
+#     y[y < stand] = 0
+#     y[y >= stand] = 1
+#     if stat:
+#         x = copy.copy(group_dataset[var[:-4]].iloc[:length])
+#         x = x.describe().loc[['mean', 'std', 'min', 'max']]
+#         x = x.append(x.median().rename('median'))
+#     if flatten:
+#         x = np.transpose(np.array(x)).flatten()
+#     x = np.array(x, dtype=np.float64)
+#     return x, y
 
 
 def re_labeling(label, data):
@@ -102,3 +103,14 @@ def re_labeling(label, data):
     #    return
     data['label'] = data.apply(lambda x : 1 if x['label'] == label else 0, axis =1)    
     return data
+
+class CustomDataset(Dataset):
+    def __init__(self, x, y):
+        self.x = torch.FloatTensor(x)
+        self.y = torch.tensor(np.array(y))
+
+    def __len__(self):
+        return len(self.y)
+
+    def __getitem__(self, index):
+        return self.x[index], self.y[index]

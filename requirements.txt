@@ -1,3 +1,4 @@
 pyyaml
 scikit-learn
 seaborn
+torchinfo

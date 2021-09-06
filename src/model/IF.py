@@ -4,12 +4,17 @@ import joblib
 
 class IF(IsolationForest):
 
-    def __init__(self, model_params):
-        self.model_params = model_params
-        self.IF = IsolationForest(**self.model_params)
+    def __init__(self, n_estimators, max_samples, contamination, random_state):
+        self.n_estimators = n_estimators
+        self.max_samples = max_samples
+        self.contamination = contamination
+        self.random_state = random_state
+        self.IF = IsolationForest(n_estimators=self.n_estimators, max_samples=self.max_samples,
+                                  contamination=self.contamination, random_state=self.random_state)
 
     def model_reset(self):
-        self.IF = IsolationForest(**self.model_params)
+        self.IF = IsolationForest(n_estimators=self.n_estimators, max_samples=self.max_samples,
+                                  contamination=self.contamination, random_state=self.random_state)
 
     def train(self, x_train):
         self.IF = self.IF.fit(x_train)

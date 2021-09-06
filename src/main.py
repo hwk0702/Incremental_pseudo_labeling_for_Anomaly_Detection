@@ -8,17 +8,20 @@ Incremental_pseudo_labeling_for_Anomaly_Detection
 from pandas.core.reshape.merge import merge
 from numpyencoder import NumpyEncoder
 from config import load_config, str2bool
-from preprocessing import normalize
+from preprocessing import normalize, CustomDataset
 from util.check_mail import send_mail
 from util.splitDataset import getDatasets
 from util.plotting import anomaly_dist, AUROC_curve
-
+from incMethod import inc_data
 from util.eval import eval
+from util.utils import EarlyStopping, set_seed
 from model.IF import IF
 from model.OCSVM import OCSVM
+from model.AE import AutoEncoder
 from sklearn.metrics import roc_curve, auc, confusion_matrix
 import pandas as pd
 import numpy as np
+from torch.utils.data import DataLoader
 import warnings
 import logging
 import json 
@@ -28,88 +31,9 @@ import os
 from collections import Counter
 from multiprocessing import Pool, cpu_count
 from functools import partial
+import pdb
 
 warnings.filterwarnings('ignore')
-
-# UNK -> train 추가 방법
-def inc_data(x_train, y_train, x_unk, y_unk, result_unk, method, method_param):    
-
-    reindex = np.argsort(-result_unk)        
-    
-    x_unk = x_unk[reindex]
-    y_unk = y_unk[reindex]
-    logger.info(f'===========================================================================') 
-    logger.info(f'[Before] Train : {Counter(y_train)}, Unlabeld : {Counter(y_unk)}')    
-
-    if method == 'simple_inc':
-        method_param = int(method_param)
-        if method_param >= len(x_unk):
-            return x_train, y_train, x_unk, y_unk, False        
-        #x_unk_add = x_unk[-method_param:]    
-        #x_unk = x_unk[:-method_param]
-        x_unk_add = x_unk[:method_param]    
-        x_unk = x_unk[method_param:]
-        x_train = np.concatenate((x_train, x_unk_add), axis=0)        
-        #y_unk_add = y_unk[-method_param:]
-        #y_unk = y_unk[:-method_param]
-        y_unk_add = y_unk[:method_param]
-        y_unk = y_unk[method_param:]
-        y_unk.reset_index(drop=True, inplace=True)        
-        y_train = np.concatenate((y_train, y_unk_add), axis = 0)        
-        logger.info(f'[After]  Train : {Counter(y_train)}, Unlabeld : {Counter(y_unk)}')
-        logger.info(f'===========================================================================') 
-
-
-    elif method == 'rate_inc':
-        n_add = int(method_param*len(x_unk))
-        if n_add < 1:
-            return x_train, y_train, x_unk, y_unk, False
-        x_unk_add = x_unk[-n_add:]
-        x_unk = x_unk[:-n_add]
-        x_train = pd.concat((x_train, x_unk_add))
-        y_unk_add = y_unk[-n_add:]
-        y_unk = y_unk[:-n_add]
-        y_train = pd.concat((y_train, y_unk_add))
-
-    elif method == 'threshold':
-        # 수정해야
-        x_unk = x_unk[np.argsort(result_unk)]
-        y_unk = y_unk[np.argsort(result_unk)]  
-
-    
-    train_idx = np.arange(x_train.shape[0])
-    unk_idx = np.arange(x_unk.shape[0])
-    np.random.shuffle(train_idx)
-    np.random.shuffle(unk_idx)
-
-    x_train = x_train[train_idx]
-    y_train = y_train[train_idx]
-    x_unk = x_unk[unk_idx]
-    y_unk = y_unk[unk_idx]
-    y_unk.reset_index(drop=True, inplace=True)
-    
-    return x_train, y_train, x_unk, y_unk, True
-
-
-class EarlyStopping():
-    def __init__(self, patience=0, verbose=0):
-        self._step = 0
-        self._loss = float('inf')
-        self.patience = patience
-        self.verbose = verbose
-
-    def validate(self, loss):
-        if self._loss < loss:
-            self._step += 1
-            if self._step > self.patience:
-                if self.verbose:
-                    logger.info(f'Training process is stopped early....')
-                return True
-        else:
-            self._step = 0
-            self._loss = loss
-
-        return False
 
 
 def main_iter(k, data, isLabelRatioChg, labelCol, norm,
@@ -117,7 +41,6 @@ def main_iter(k, data, isLabelRatioChg, labelCol, norm,
               method_param, output_path, model_params):
     """
         main iteration
-
         Arguments
         ---------
         - k               : iteration number,
@@ -133,7 +56,6 @@ def main_iter(k, data, isLabelRatioChg, labelCol, norm,
         - method_param    : ,
         - output_path     : ,
         - model_params    : ,
-
         Return
         ------
         - None
@@ -188,21 +110,28 @@ def main_iter(k, data, isLabelRatioChg, labelCol, norm,
     # train and test
     logger.info('Training Start!')
     logger.info(f'\n iter : {k}, data : {dataset}, model : {model_name}, abnormal label : {ab_label}, '
-                f'increment method : {method}, increment parameter : {method_param}')    
-    
-    # model_params 초기화
-    model_params = config[model_name]
-    while repeat:
-        
-        num_repeat += 1
+                f'increment method : {method}, increment parameter : {method_param}')
 
-        ##Isolation 동일한 sample 추출 방지 test
-        if(model_name == 'IF'):
-            model_params['random_state'] = model_params['random_state'] + num_repeat            
-            model = globals()[model_name](model_params)
-        
-        model = globals()[model_name](model_params)
-        model.train(x_train)
+    if model_name == 'AutoEncoder':
+        model_params['units'].insert(0, x_train.shape[1])
+        model_params['units'].append(x_train.shape[1])
+
+    while repeat:
+        num_repeat += 1
+        model = globals()[model_name](**model_params)
+        if model_name in ['IF', 'OCSVM']:
+            model.train(x_train)
+        else:
+            params = {'batch_size': 64,
+                      'shuffle': True,
+                      'num_workers': 4,
+                      'pin_memory': True}
+            tr_dataset = CustomDataset(x_train, y_train)
+            trainloader = DataLoader(dataset=tr_dataset, **params)
+            # valid_dataset = CustomDataset(x_val[y_val == 1], y_val[y_val == 1])
+            # validloader = DataLoader(dataset=valid_dataset)
+            model.train(trainloader, x_val[y_val == 1])
+
         model.save(model_save_path + f'{method}_{method_param}_K{k}_{num_repeat}')
         result_val = model.validation(x_val)
 
@@ -239,11 +168,16 @@ def main_iter(k, data, isLabelRatioChg, labelCol, norm,
 
         #if early_stopping.validate(-roc_auc):
         #   break
+        logger.info(f'===========================================================================')
 
+        logger.info(f'[Before] Train : {Counter(y_train)}, Unlabeld : {Counter(y_unk)}')
         x_train, y_train, x_unk, y_unk, repeat = inc_data(x_train, y_train,
                                                           x_unk, y_unk,
                                                           result_unk,
                                                           method, method_param)
+
+        logger.info(f'[After]  Train : {Counter(y_train)}, Unlabeld : {Counter(y_unk)}')
+        logger.info(f'===========================================================================')
 
     result_path = f'{output_path}/{dataset}/{model_name}/'
     if not os.path.exists(result_path):
@@ -290,16 +224,25 @@ def main(args, config):
     if (dataset == 'cifa100'):
         iter_num = 20
 
-    with Pool(workers or cpu_count()) as pool:
-        pool.imap(            
-            func=partial(main_iter,
-                         data=data, isLabelRatioChg=isLabelRatioChg, labelCol=labelCol, norm=norm,
-                         save_path=save_path, dataset=dataset, model_name=model_name, method=method, ab_label=ab_label,
-                         method_param=method_param, output_path=output_path, model_params=model_params),
-            iterable=range(iter_num)
-        )
-        pool.close()
-        pool.join()
+
+    if model_name in ['IF', 'OCSVM']:
+        with Pool(workers or cpu_count()) as pool:
+            pool.imap(
+                func=partial(main_iter,
+                             data=data, isLabelRatioChg=isLabelRatioChg, labelCol=labelCol, norm=norm,
+                             save_path=save_path, dataset=dataset, model_name=model_name, method=method, ab_label=ab_label,
+                             method_param=method_param, output_path=output_path, model_params=model_params),
+                iterable=range(iter_num)
+            )
+            pool.close()
+            pool.join()
+    else:
+        for k in range(iter_num):
+            main_iter(k,
+                      data=data, isLabelRatioChg=isLabelRatioChg, labelCol=labelCol, norm=norm,
+                      save_path=save_path, dataset=dataset, model_name=model_name, method=method, ab_label=ab_label,
+                      method_param=method_param, output_path=output_path, model_params=model_params
+                      )
 
     subject = f'model : {model_name}, Dataset : {dataset}, Inc_method : {method}, method_param : {method_param}'
     text = f'model : {model_name}, Dataset : {dataset}, Inc_method : {method}, method_param : {method_param}'
@@ -326,7 +269,6 @@ if __name__ == '__main__':
     # main
     try:
         main(args, config)
-    except:
+    except Exception as e:
+        logger.error(e)
         logger.exception("error")
-
-
